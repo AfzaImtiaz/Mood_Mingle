@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoodTunes - Python-Powered Music Suggestion</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .glass-effect { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
+        .loader { border: 4px solid rgba(255, 255, 255, 0.3); border-radius: 50%; border-top: 4px solid white; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl md:text-5xl font-bold text-white mb-3">
+                <i class="fas fa-music mr-3"></i>MoodTunes (Python)
+            </h1>
+            <p class="text-xl text-purple-100">Discover the perfect song, powered by a Python AI backend</p>
+        </header>
+
+        <main class="glass-effect rounded-2xl p-6 md:p-10 shadow-2xl">
+            <!-- Upload Section -->
+            <section id="upload-section" class="mb-8">
+                <div id="upload-area" class="border-2 border-dashed border-purple-300 rounded-xl p-8 text-center cursor-pointer hover:bg-purple-50 hover:bg-opacity-10 transition-all">
+                    <input type="file" id="image-input" accept="image/*" class="hidden">
+                    <i class="fas fa-cloud-upload-alt text-5xl text-purple-200 mb-4"></i>
+                    <p class="text-xl text-white mb-2">Click to upload an image</p>
+                    <p class="text-purple-200">or drag and drop</p>
+                </div>
+            </section>
+
+            <!-- Results Section (Initially Hidden) -->
+            <div id="results-section" class="hidden">
+                <div class="flex flex-col md:flex-row gap-6 mb-8">
+                    <div class="md:w-1/2">
+                        <h2 class="text-2xl font-semibold text-white mb-4">Your Image</h2>
+                        <div class="rounded-lg overflow-hidden shadow-lg">
+                            <img id="uploaded-image" src="" alt="Uploaded image" class="w-full h-auto">
+                        </div>
+                    </div>
+                    <div class="md:w-1/2">
+                        <h2 class="text-2xl font-semibold text-white mb-4">AI Analysis</h2>
+                        <div class="bg-white bg-opacity-20 rounded-lg p-6 text-white">
+                            <div id="loading" class="flex items-center justify-center h-32">
+                                <div class="loader"></div>
+                                <span class="ml-3">Analyzing with Python...</span>
+                            </div>
+                            <div id="analysis-results" class="hidden">
+                                <p class="text-lg mb-2">Detected Mood: <span id="mood-text" class="font-bold text-2xl"></span></p>
+                                <p class="text-lg mb-2">Confidence: <span id="confidence-text" class="font-bold"></span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Song Suggestions Section -->
+                <section>
+                    <h2 class="text-2xl font-semibold text-white mb-6">Perfect Songs for This Mood</h2>
+                    <div id="songs-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <!-- Song cards will be dynamically added here -->
+                    </div>
+                    <div class="mt-8 text-center">
+                        <button id="analyze-another" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-full transition-all">
+                            <i class="fas fa-redo mr-2"></i>Analyze Another Image
+                        </button>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // DOM Elements
+        const uploadArea = document.getElementById('upload-area');
+        const imageInput = document.getElementById('image-input');
+        const uploadSection = document.getElementById('upload-section');
+        const resultsSection = document.getElementById('results-section');
+        const uploadedImage = document.getElementById('uploaded-image');
+        const loading = document.getElementById('loading');
+        const analysisResults = document.getElementById('analysis-results');
+        const moodText = document.getElementById('mood-text');
+        const confidenceText = document.getElementById('confidence-text');
+        const songsContainer = document.getElementById('songs-container');
+        const analyzeAnotherBtn = document.getElementById('analyze-another');
+
+        // Event Listeners
+        uploadArea.addEventListener('click', () => imageInput.click());
+        imageInput.addEventListener('change', handleImageUpload);
+        analyzeAnotherBtn.addEventListener('click', resetApp);
+
+        // Drag and Drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('bg-opacity-20');
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('bg-opacity-20');
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('bg-opacity-20');
+            if (e.dataTransfer.files.length) {
+                handleImageFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        function handleImageUpload(e) {
+            if (e.target.files && e.target.files[0]) {
+                handleImageFile(e.target.files[0]);
+            }
+        }
+
+        function handleImageFile(file) {
+            if (!file.type.match('image.*')) {
+                alert('Please upload an image file.');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                uploadedImage.src = e.target.result;
+                uploadSection.classList.add('hidden');
+                resultsSection.classList.remove('hidden');
+                loading.classList.remove('hidden');
+                analysisResults.classList.add('hidden');
+                songsContainer.innerHTML = '';
+                
+                // Send the image to the Python backend for analysis
+                analyzeImageWithPython(file);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function analyzeImageWithPython(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+
+                // Display the results from the Python backend
+                displayResults(result);
+
+            } catch (error) {
+                console.error('Analysis failed:', error);
+                alert(`Failed to analyze image: ${error.message}`);
+                resetApp();
+            }
+        }
+
+        function displayResults(data) {
+            loading.classList.add('hidden');
+            analysisResults.classList.remove('hidden');
+
+            moodText.textContent = data.mood.charAt(0).toUpperCase() + data.mood.slice(1);
+            confidenceText.textContent = `${data.confidence}%`;
+
+            // Display song suggestions
+            data.songs.forEach(song => {
+                const songCard = document.createElement('div');
+                songCard.className = 'bg-white rounded-lg p-6 shadow-lg';
+                songCard.innerHTML = `
+                    <div class="flex items-center mb-4">
+                        <div class="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white mr-4">
+                            <i class="fas fa-music"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg text-gray-800">${song.title}</h3>
+                            <p class="text-gray-600">${song.artist}</p>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">${song.year}</span>
+                    </div>
+                `;
+                songsContainer.appendChild(songCard);
+            });
+        }
+
+        function resetApp() {
+            imageInput.value = '';
+            uploadSection.classList.remove('hidden');
+            resultsSection.classList.add('hidden');
+            window.scrollTo(0, 0);
+        }
+    </script>
+</body>
+</html>
